@@ -89,7 +89,10 @@
                 }
 
                 if (valB !== valA) return valB - valA;
+
                 if (criteria !== 'merged' && b.merged_prs !== a.merged_prs) return b.merged_prs - a.merged_prs;
+                if (criteria !== 'open_prs' && b.open_prs !== a.open_prs) return b.open_prs - a.open_prs;
+                if (criteria !== 'open_issues' && b.open_issues !== a.open_issues) return b.open_issues - a.open_issues;
                 return a.author.toLowerCase().localeCompare(b.author.toLowerCase());
             });
         }
