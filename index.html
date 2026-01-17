@@ -9,8 +9,20 @@
 <body class="bg-gray-900 text-white p-4 md:p-8">
     <div class="max-w-5xl mx-auto">
         <h1 class="text-3xl md:text-4xl font-bold mb-2 text-blue-400 text-center">RocketChat Leaderboard</h1>
-        <p id="last-updated" class="text-gray-400 text-center mb-8 text-sm">Activity since 2025-12-01</p>
+        <p id="last-updated" class="text-gray-400 text-center mb-6 text-sm">Activity since 2025-12-01</p>
         
+        <div class="flex justify-center mb-8">
+            <div class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-md">
+                <label for="sort-select" class="text-gray-400 text-sm font-medium">Sort By:</label>
+                <select id="sort-select" class="bg-gray-900 border border-gray-600 text-white text-sm rounded-md px-3 py-1 focus:ring-blue-500 outline-none cursor-pointer">
+                    <option value="total">Total Activity</option>
+                    <option value="merged">Merged PRs</option>
+                    <option value="open_prs">Open PRs</option>
+                    <option value="open_issues">Open Issues</option>
+                </select>
+            </div>
+        </div>
+
         <div class="overflow-x-auto rounded-lg border border-gray-700 shadow-lg">
             <table class="w-full text-left border-collapse">
                 <thead class="bg-gray-800 text-gray-300 uppercase text-xs md:text-sm">
@@ -19,13 +31,13 @@
                         <th class="px-4 py-4">Contributor</th>
                         <th class="px-4 py-4 text-center">Open PRs</th>
                         <th class="px-4 py-4 text-center">Merged PRs</th>
-                        <th class="px-4 py-4 text-center">Issues</th>
-                        <th class="px-4 py-4 text-center">Total</th> 
+                        <th class="px-4 py-4 text-center">Open Issues</th>
+                        <th class="px-4 py-4 text-center bg-gray-800/50">Total</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboard-body" class="divide-y divide-gray-800 bg-gray-900">
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">Loading data from GitHub...</td>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">Loading data from GitHub...</td>
                     </tr>
                 </tbody>
             </table>
@@ -33,44 +45,74 @@
     </div>
 
     <script>
+        let leaderboardData = [];
+        const startDate = "2025-12-01";
+
         async function loadData() {
             const body = document.getElementById('leaderboard-body');
-            const startDate = "2025-12-01"; // Match this to your Python script date
+            const sortSelect = document.getElementById('sort-select');
             
             try {
                 const response = await fetch(`./data.json?t=${new Date().getTime()}`);
                 if (!response.ok) throw new Error('Data not found');
-                const data = await response.json();
+                leaderboardData = await response.json();
                 
-                body.innerHTML = ''; 
-                
-                data.forEach((user, index) => {
-                    const searchUrl = `https://github.com/search?q=author:${user.author}+org:RocketChat+created:>=${startDate}`;
-                    const total = user.open_prs + user.merged_prs + user.issues;
+                renderTable(leaderboardData);
 
-                    const row = `
-                        <tr class="hover:bg-gray-800 transition-colors border-b border-gray-800">
-                            <td class="px-4 py-4 font-mono text-gray-500">#${index + 1}</td>
-                            <td class="px-4 py-4 font-medium text-blue-400">
-                                <a href="${searchUrl}" target="_blank" class="hover:underline flex flex-col">
-                                    <span>@${user.author}</span>
-                                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">View Activity ↗</span>
-                                </a>
-                            </td>
-                            <td class="px-4 py-4 text-center text-yellow-400">${user.open_prs}</td>
-                            <td class="px-4 py-4 text-center text-green-400">${user.merged_prs}</td>
-                            <td class="px-4 py-4 text-center text-purple-400">${user.issues}</td>
-                            <td class="px-4 py-4 text-center font-bold text-white bg-gray-800/50">${total}</td>
-                        </tr>`;
-                    body.innerHTML += row;
+                sortSelect.addEventListener('change', (e) => {
+                    const sorted = sortData(leaderboardData, e.target.value);
+                    renderTable(sorted);
                 });
+
             } catch (error) {
                 console.error(error);
                 body.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-red-400">Error loading data.</td></tr>`;
             }
         }
+
+        function sortData(data, criteria) {
+            return [...data].sort((a, b) => {
+                let valA, valB;
+                if (criteria === 'total') {
+                    valA = a.open_prs + a.merged_prs + a.open_issues;
+                    valB = b.open_prs + b.merged_prs + b.open_issues;
+                } else {
+                    valA = a[criteria];
+                    valB = b[criteria];
+                }
+
+                if (valB !== valA) return valB - valA;
+                if (b.merged_prs !== a.merged_prs) return b.merged_prs - a.merged_prs;
+                if (b.open_prs !== a.open_prs) return b.open_prs - a.open_prs;
+                return a.author.toLowerCase().localeCompare(b.author.toLowerCase());
+            });
+        }
+
+        function renderTable(data) {
+            const body = document.getElementById('leaderboard-body');
+            body.innerHTML = '';
+            
+            data.forEach((user, index) => {
+                const searchUrl = `https://github.com/search?q=author:${user.author}+org:RocketChat+created:>=${startDate}`;
+                const total = user.open_prs + user.merged_prs + user.open_issues;
+
+                body.innerHTML += `
+                    <tr class="hover:bg-gray-800 transition-colors border-b border-gray-800">
+                        <td class="px-4 py-4 font-mono text-gray-500">#${index + 1}</td>
+                        <td class="px-4 py-4 font-medium text-blue-400">
+                            <a href="${searchUrl}" target="_blank" class="hover:underline flex flex-col">
+                                <span>@${user.author}</span>
+                                <span class="text-[10px] text-gray-500 uppercase tracking-wider">View Activity ↗</span>
+                            </a>
+                        </td>
+                        <td class="px-4 py-4 text-center text-yellow-400">${user.open_prs}</td>
+                        <td class="px-4 py-4 text-center text-green-400">${user.merged_prs}</td>
+                        <td class="px-4 py-4 text-center text-purple-400">${user.open_issues}</td>
+                        <td class="px-4 py-4 text-center font-bold text-white bg-gray-800/50">${total}</td>
+                    </tr>`;
+            });
+        }
         loadData();
     </script>
 </body>
 </html>
-
